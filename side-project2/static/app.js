@@ -2,6 +2,7 @@
  * Fruitful - AI Food Scanner & Nutrition Tracker
  * Firebase Integrated Version (Modular SDK)
  */
+const BACKEND_URL = "https://fruitful-railway-production.up.railway.app/analyze";
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
