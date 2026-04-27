@@ -5,6 +5,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import google.generativeai as genai
 from dotenv import load_dotenv
+from flask import send_from_directory
 
 load_dotenv()
 
@@ -68,6 +69,10 @@ def get_gemini_response(image_data):
             "health": "Unknown",
             "tip": "Could not analyze this image. Please try again."
         }
+
+@app.route("/")
+def home():
+    return send_from_directory("static", "index.html")
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
