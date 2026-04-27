@@ -26,7 +26,7 @@ def clean_json(text):
 def get_gemini_response(image_data):
     prompt = """
     Analyze this food image and provide nutritional information.
-    Return ONLY a JSON object with the following structure:
+    Return ONLY a JSON object with:
     {
         "name": "Food Name",
         "calories": 250,
@@ -34,50 +34,64 @@ def get_gemini_response(image_data):
         "carbs": 30,
         "fat": 8,
         "health": "Excellent/Good/Fair/Poor",
-        "tip": "A short healthy tip about this meal."
+        "tip": "Short tip"
     }
-        Be accurate but concise. Do not include any other text or formatting.
-    -Foods are mostly nepali,indian and other international food and fruits
     """
 
-    # clean base64
-    if "," in image_data:
-        image_data = image_data.split(",")[1]
+if "," in image_data:
+    image_data = image_data.split(",")[1]
 
-    image_input = {
-        "mime_type": "image/jpeg",
-        "data": image_data
-    }
+# 🔥 convert to bytes (IMPORTANT)
+image_bytes = base64.b64decode(image_data)
 
-    # 🥇 TRY MODEL 1 (FAST BUT UNSTABLE)
-    try:
-        print("Trying 3.1 model...")
-        model = genai.GenerativeModel("gemini-3.1-flash-lite-preview")
+image_input = {
+    "mime_type": "image/jpeg",
+    "data": image_bytes
+}
 
-        response = model.generate_content([prompt, image_input])
-        text = response.text.strip()
+    # 🔁 Try both models safely
+    for model_name in [
+        "gemini-3.1-flash-lite-preview",
+        "gemini-2.5-flash"
+    ]:
+        try:
+            print(f"Trying {model_name}...")
 
-        print("3.1 success")
-        return json.loads(clean_json(text))
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content([prompt, image_input])
 
-    except Exception as e:
-        print("❌ 3.1 failed:", e)
+            if not response or not response.text:
+                raise Exception("Empty response")
 
-    # 🥈 FALLBACK MODEL (STABLE)
-    try:
-        print("Trying 2.5 model...")
-        model = genai.GenerativeModel("gemini-2.5-flash")
+            text = response.text.strip()
 
-        response = model.generate_content([prompt, image_input])
-        text = response.text.strip()
+            # clean markdown
+            if text.startswith("```json"):
+                text = text[7:-3].strip()
+            elif text.startswith("```"):
+                text = text[3:-3].strip()
 
-        print("2.5 success")
-        return json.loads(clean_json(text))
+            # 🔥 SAFE JSON PARSE
+            try:
+                return json.loads(text)
+            except:
+                print("Invalid JSON, raw:", text)
 
-    except Exception as e:
-        print("❌ 2.5 also failed:", e)
+                # fallback safe return
+                return {
+                    "name": "Detected Food",
+                    "calories": 0,
+                    "protein": 0,
+                    "carbs": 0,
+                    "fat": 0,
+                    "health": "Unknown",
+                    "tip": text[:100]
+                }
 
-    # 🧯 FINAL FALLBACK
+        except Exception as e:
+            print(f"{model_name} failed:", e)
+
+    # 🚨 FINAL fallback (never crash)
     return {
         "name": "Server Busy",
         "calories": 0,
@@ -94,12 +108,21 @@ def home():
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    data = request.json
-    if not data or 'image' not in data:
-        return jsonify({"error": "No image data provided"}), 400
-    
-    analysis = get_gemini_response(data['image'])
-    return jsonify(analysis)
+    try:
+        data = request.json
+        result = get_gemini_response(data['image'])
+        return jsonify(result)
+    except Exception as e:
+        print("🔥 CRITICAL ERROR:", e)
+        return jsonify({
+            "name": "Error",
+            "calories": 0,
+            "protein": 0,
+            "carbs": 0,
+            "fat": 0,
+            "health": "Error",
+            "tip": "Something went wrong"
+        }), 200   # 👈 important: NOT 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
